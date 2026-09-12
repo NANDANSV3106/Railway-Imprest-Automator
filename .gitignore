@@ -1,0 +1,33 @@
+# Python
+
+**pycache**/
+*.py[cod]
+*.pyo
+
+# Virtual environment
+
+venv/
+.venv/
+env/
+
+# Environment variables / secrets
+
+.env
+
+# Application data
+
+imprest_balances.ini
+
+# Word templates
+
+templates/*.docx
+
+# IDE
+
+.vscode/
+.idea/
+
+# OS
+
+.DS_Store
+Thumbs.db
