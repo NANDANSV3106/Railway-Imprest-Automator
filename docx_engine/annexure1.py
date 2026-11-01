@@ -5,6 +5,7 @@ Populates the ANNEXURE_TEMPLATE.docx by locating specific anchor text
 in its paragraphs/tables and replacing/appending runs — see
 core/validation.py for the anchor list this template must contain.
 """
+import copy
 import docx
 
 from config import STATION_DEFAULT
@@ -180,6 +181,21 @@ def generate_annexure_1(template_path, month, year,
                 src_tr = table.rows[3]._tr
                 new_tr = copy.deepcopy(src_tr)
                 src_tr.addnext(new_tr)
+                # BUG FIXED: the clone is an exact copy of row 3 (Sl.No
+                # "03"), including its Sl.No and Voucher-reference cell
+                # text. Left as-is, BOTH the original and the new row
+                # are labeled "03" — the TABLE ENGINE below matches
+                # rows by their Sl.No text, so it can't tell them apart:
+                # every "sl == 03" check matches twice, the second
+                # worker's wage (meant for a genuine "04" row) never
+                # gets filled in, and the document shows two identical
+                # "03" rows instead of "03" + "04". Relabel the new row
+                # to "04" immediately so the table engine can address
+                # it independently.
+                new_row = table.rows[4]
+                new_row.cells[0].text = "04"
+                if "Voucher No" in new_row.cells[2].text:
+                    new_row.cells[2].text = new_row.cells[2].text.replace("03", "04").replace("- 3", "- 4")
             elif num_vouchers == 3 and current_data_rows == 4:
                 tr = table.rows[3]._tr
                 tr.getparent().remove(tr)
@@ -261,7 +277,7 @@ def generate_annexure_1(template_path, month, year,
 
             # TABLE 3: G.I. Ledger
             elif "OPENING BALANCE" in full_txt and len(row.cells) >= 6:
-                xh.set_plain_cell(row.cells[0], s_date, size_pt=12)
+                xh.set_plain_cell(row.cells[0], s_date, size_pt=12, align="center")
                 # Amount cell starts empty with no formatting to
                 # inherit, but the reference documents show it bold —
                 # set_bold_right_cell both bolds and right-aligns in
@@ -279,10 +295,10 @@ def generate_annexure_1(template_path, month, year,
             elif "Consumable Items" in full_txt and len(row.cells) >= 6:
                 vno = texts[1]
                 if vno in ("1", "01"):
-                    xh.set_plain_cell(row.cells[0], v1_date, size_pt=12)
+                    xh.set_plain_cell(row.cells[0], v1_date, size_pt=12, align="center")
                     xh.set_ledger_amount_cell(row.cells[5], str(v1_amt))
                 elif vno in ("2", "02") and num_vouchers == 4:
-                    xh.set_plain_cell(row.cells[0], v2_date, size_pt=12)
+                    xh.set_plain_cell(row.cells[0], v2_date, size_pt=12, align="center")
                     xh.set_ledger_amount_cell(row.cells[5], str(v2_amt))
 
             # TABLE 3 Labour rows — 3V: vouchers 2&3; 4V: vouchers 3&4
@@ -290,17 +306,17 @@ def generate_annexure_1(template_path, month, year,
                 vno = texts[1]
                 if num_vouchers == 3:
                     if vno in ("2", "02"):
-                        xh.set_plain_cell(row.cells[0], e_date, size_pt=12)
+                        xh.set_plain_cell(row.cells[0], e_date, size_pt=12, align="center")
                         xh.set_ledger_amount_cell(row.cells[5], str(dev_total))
                     elif vno in ("3", "03"):
-                        xh.set_plain_cell(row.cells[0], e_date, size_pt=12)
+                        xh.set_plain_cell(row.cells[0], e_date, size_pt=12, align="center")
                         xh.set_ledger_amount_cell(row.cells[5], str(tha_total))
                 else:
                     if vno in ("3", "03"):
-                        xh.set_plain_cell(row.cells[0], e_date, size_pt=12)
+                        xh.set_plain_cell(row.cells[0], e_date, size_pt=12, align="center")
                         xh.set_ledger_amount_cell(row.cells[5], str(dev_total))
                     elif vno in ("4", "04"):
-                        xh.set_plain_cell(row.cells[0], e_date, size_pt=12)
+                        xh.set_plain_cell(row.cells[0], e_date, size_pt=12, align="center")
                         xh.set_ledger_amount_cell(row.cells[5], str(tha_total))
 
             elif "TOTAL" in full_txt and "OPENING" not in full_txt \

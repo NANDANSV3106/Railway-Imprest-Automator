@@ -38,11 +38,33 @@ def make_run(text, bold=False, size=None, underline=False,
         u.set(qn('w:val'), 'single')
         rpr.append(u)
     r.append(rpr)
-    t = OxmlElement('w:t')
-    t.text = text
-    if text and (text[0] == ' ' or text[-1] == ' '):
-        t.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
-    r.append(t)
+
+    # Tab characters ('\t') embedded in `text` are converted to real
+    # OOXML <w:tab/> elements instead of being left as literal tab
+    # characters inside <w:t>. This used to only set
+    # xml:space="preserve" when the text STARTED or ENDED with a plain
+    # space — never for tabs, and never for tabs buried in the middle
+    # of the string. Without that attribute, Word's XML whitespace
+    # handling strips leading/trailing tabs and can collapse runs of
+    # consecutive tabs, so paragraphs built like
+    # "\tControlling Officer\t\t\t\t\t\t (NAME)" rendered with the
+    # tabs silently gone — "(NAME)" ended up sitting right next to
+    # "Controlling Officer" instead of jumping to the intended column
+    # on the right of the page, and other tab-prefixed lines (AUTO
+    # PHONE, MOBILE NO.) collapsed all the way to the left margin.
+    # <w:tab/> is an unambiguous, dedicated element Word always
+    # interprets as "advance to the next tab stop" — it sidesteps the
+    # whitespace-preservation issue entirely rather than trying to set
+    # xml:space correctly for every case.
+    segments = text.split('\t')
+    for i, segment in enumerate(segments):
+        if segment:
+            t = OxmlElement('w:t')
+            t.text = segment
+            t.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
+            r.append(t)
+        if i < len(segments) - 1:
+            r.append(OxmlElement('w:tab'))
     return r
 
 
@@ -177,16 +199,31 @@ def set_bold_right_cell(cell, text, size_pt=None):
     right_align_cell(cell)
 
 
-def set_plain_cell(cell, text, size_pt=None, bold=False):
+def set_plain_cell(cell, text, size_pt=None, bold=False, align=None):
     """Set cell text with an explicit font size (and optional bold),
     for simple cells that start empty in the template and would
     otherwise fall back to Word's default size instead of matching the
-    surrounding table."""
+    surrounding table. Pass align="center" (or "right") to also force
+    paragraph alignment — cells that start empty have no formatting to
+    inherit here either, so a caller that needs centered dates (e.g.
+    the Page 2 ledger table) must set it explicitly or it silently
+    falls back to left alignment instead of matching the reference."""
     cell.text = text
     for run in cell.paragraphs[0].runs:
         run.bold = bold
         if size_pt is not None:
             run.font.size = docx.shared.Pt(size_pt)
+    if align is not None:
+        para = cell.paragraphs[0]
+        ppr = para._p.find(qn('w:pPr'))
+        if ppr is None:
+            ppr = OxmlElement('w:pPr')
+            para._p.insert(0, ppr)
+        jc = ppr.find(qn('w:jc'))
+        if jc is None:
+            jc = OxmlElement('w:jc')
+            ppr.append(jc)
+        jc.set(qn('w:val'), align)
 
 
 def format_total_row_cells(row, pt_size, sz_val):

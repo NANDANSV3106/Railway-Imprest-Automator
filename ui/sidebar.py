@@ -17,7 +17,11 @@ import streamlit as st
 
 from config import MONTHS
 from core.dates import get_days_in_month
+import datetime
+
 from core.sanitize import esc
+
+SUBMISSION_CUTOFF_DAY = 15
 
 
 def render_sidebar(station):
@@ -35,25 +39,31 @@ def render_sidebar(station):
 
         st.markdown('<span class="sb-section-label">Billing Period</span>', unsafe_allow_html=True)
 
-        if "selected_month" not in st.session_state:
-            st.session_state.selected_month = MONTHS[0]
-        if "selected_year" not in st.session_state:
-            st.session_state.selected_year = "2026"
+        today = datetime.date.today()
+        # Last day to submit the previous month's imprest is the 15th of
+        # the next month. On/before the 15th -> previous month; after -> current.
+        if today.day <= SUBMISSION_CUTOFF_DAY:
+            default_month_idx = today.month - 2
+            default_year = today.year
+            if default_month_idx < 0:
+                default_month_idx = 11
+                default_year -= 1
+        else:
+            default_month_idx = today.month - 1
+            default_year = today.year
 
-        year_options = [str(y) for y in range(2024, 2031)]
+        year_options = [str(y) for y in range(today.year - 1, today.year + 3)]
 
-        sel_month = st.selectbox(
-            "Month", MONTHS,
-            index=MONTHS.index(st.session_state.selected_month),
-            label_visibility="collapsed", key="sb_month")
-        sel_year = st.selectbox(
-            "Year", year_options,
-            index=year_options.index(st.session_state.selected_year)
-                  if st.session_state.selected_year in year_options else 2,
-            label_visibility="collapsed", key="sb_year")
+        # Defaults apply only on first load; afterwards the user's pick sticks.
+        if "sb_month" not in st.session_state:
+            st.session_state["sb_month"] = MONTHS[default_month_idx]
+        if "sb_year" not in st.session_state or st.session_state["sb_year"] not in year_options:
+            st.session_state["sb_year"] = str(default_year)
 
-        st.session_state.selected_month = sel_month
-        st.session_state.selected_year  = sel_year
+        sel_month = st.selectbox("Month", MONTHS,
+                                 label_visibility="collapsed", key="sb_month")
+        sel_year = st.selectbox("Year", year_options,
+                                label_visibility="collapsed", key="sb_year")
 
         days_in_month, month_idx = get_days_in_month(sel_month, sel_year)
 
